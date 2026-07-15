@@ -305,9 +305,12 @@ code {
   );
   -webkit-mask-image: url("/static/circuit-pattern.svg");
   mask-image: url("/static/circuit-pattern.svg");
-  -webkit-mask-repeat: repeat;
-  mask-repeat: repeat;
-  -webkit-mask-size: 560px 560px;
+  -webkit-mask-repeat: no-repeat;
+  mask-repeat: no-repeat;
+  -webkit-mask-size: cover;
+  mask-size: cover;
+  -webkit-mask-position: center;
+  mask-position: center;
   opacity: 0.18;
   z-index: -1;
   pointer-events: none;
