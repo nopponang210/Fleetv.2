@@ -14,8 +14,8 @@
   --text-muted: #55758d;
   --accent-cyan: #00dcff;
   --accent-mint: #23f29a;
-  --font-family: 'Outfit', 'Sarabun', system-ui, sans-serif;
-  --font-heading: 'Orbitron', 'Outfit', sans-serif;
+  --font-family: 'Outfit', 'Kanit', 'Sarabun', system-ui, sans-serif;
+  --font-heading: 'Orbitron', 'Chakra Petch', 'Outfit', sans-serif;
   --glow-shadow: 0 0 25px rgba(0, 220, 255, 0.25);
   --transition: all 0.3s cubic-bezier(0.4, 0, 0.2, 1);
 }
@@ -165,8 +165,8 @@ aside::before {
 
 /* Navigation items */
 .nav {
-  font-family: var(--font-family);
-  font-weight: 500;
+  font-family: var(--font-heading);
+  font-weight: 600;
   border-radius: 8px;
   transition: var(--transition);
   border: 1px solid transparent;
@@ -277,6 +277,7 @@ h1 {
 
 /* Buttons styling */
 button {
+  font-family: var(--font-heading);
   background: linear-gradient(135deg, rgba(0, 220, 255, 0.08), rgba(35, 242, 154, 0.12));
   border: 1px solid var(--neon-cyan);
   color: var(--neon-cyan);
