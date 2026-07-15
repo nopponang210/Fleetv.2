@@ -291,3 +291,46 @@ code {
   text-shadow: 0 0 8px rgba(35, 242, 154, 0.4);
   background: #030813;
 }
+
+/* Circuit Board Overlay Styling */
+#circuit-overlay {
+  content: "";
+  position: fixed;
+  inset: 0;
+  pointer-events: none;
+  background: linear-gradient(
+    135deg,
+    var(--neon-cyan),
+    rgba(7, 140, 255, 0.35)
+  );
+  -webkit-mask-image: url("/static/circuit-pattern.svg");
+  mask-image: url("/static/circuit-pattern.svg");
+  -webkit-mask-repeat: repeat;
+  mask-repeat: repeat;
+  -webkit-mask-size: 560px 560px;
+  opacity: 0.18;
+  z-index: -1;
+  pointer-events: none;
+  transition: opacity 0.15s ease;
+}
+
+/* Switch styling inside control panel */
+.circuit-control-panel .switch input:checked + .slider {
+  background-color: var(--neon-cyan);
+  box-shadow: 0 0 8px rgba(0, 220, 255, 0.4);
+}
+.circuit-control-panel .switch .slider::before {
+  content: "";
+  position: absolute;
+  height: 14px;
+  width: 14px;
+  left: 3px;
+  bottom: 3px;
+  background-color: white;
+  border-radius: 50%;
+  transition: 0.3s;
+}
+.circuit-control-panel .switch input:checked + .slider::before {
+  transform: translateX(14px);
+}
+

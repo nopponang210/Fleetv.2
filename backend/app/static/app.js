@@ -221,3 +221,36 @@ window.editExpense=(id)=>{
 };
 async function completeMaintenance(id,currentMileage){const mileage=prompt('เลขไมล์ขณะเข้ารับบริการ',currentMileage),performedDate=prompt('วันที่ดำเนินการ (YYYY-MM-DD)',new Date().toISOString().slice(0,10));if(mileage===null||performedDate===null)return;try{await api(`/maintenance-schedules/${id}/complete`,{method:'POST',body:JSON.stringify({mileage:Number(mileage),performed_date:performedDate})});show('maintenance')}catch(err){alert(err.message)}}
 init();
+
+function initCircuitOverlay() {
+  const overlay = document.getElementById('circuit-overlay');
+  const toggle = document.getElementById('circuit-toggle');
+  const slider = document.getElementById('circuit-slider');
+  const valueDisp = document.getElementById('circuit-value');
+
+  if (!overlay || !toggle || !slider || !valueDisp) return;
+
+  const enabled = localStorage.getItem('circuit_enabled') !== 'false';
+  const intensity = localStorage.getItem('circuit_intensity') || '18';
+
+  toggle.checked = enabled;
+  slider.value = intensity;
+  valueDisp.textContent = intensity + '%';
+
+  function applyPreferences() {
+    const isEnabled = toggle.checked;
+    const val = slider.value;
+    
+    localStorage.setItem('circuit_enabled', isEnabled);
+    localStorage.setItem('circuit_intensity', val);
+    
+    valueDisp.textContent = val + '%';
+    overlay.style.opacity = isEnabled ? (val / 100) : '0';
+  }
+
+  toggle.addEventListener('change', applyPreferences);
+  slider.addEventListener('input', applyPreferences);
+  applyPreferences();
+}
+initCircuitOverlay();
+
