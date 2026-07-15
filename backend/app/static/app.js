@@ -25,7 +25,37 @@ async function mileagePage(){const rows=await api('/mileages');$('#content').inn
 async function expensePage(){const rows=await api('/expenses');$('#content').innerHTML=`<div class="two-col">${form('บันทึกค่าใช้จ่าย',`<form id="expenseForm" class="grid-form"><label>รถ<select name="vehicle_id">${options()}</select></label><label>หมวด<select name="category">${categories.map(x=>`<option>${x}</option>`).join('')}</select></label><label>จำนวนเงิน<input type="number" min="0" step=".01" name="amount" required></label><label>วันที่<input type="date" name="expense_date" value="${new Date().toISOString().slice(0,10)}"></label><label>อู่/ร้านค้า<input name="garage_name"></label><label>หมายเหตุ<input name="note"></label><button>บันทึกค่าใช้จ่าย</button></form>`)}${form('ประวัติค่าใช้จ่าย',table(['รถ','หมวด','จำนวนเงิน','วันที่'],rows.map(x=>[vname(x.vehicle_id),esc(x.category),'฿'+Number(x.amount).toLocaleString(),esc(x.expense_date)])))}</div>`;$('#expenseForm').onsubmit=e=>submit(e,'/expenses')}
 async function maintenance(){const rows=await api('/maintenance-schedules'),tableRows=rows.map(x=>[`${esc(x.vehicle_name)}<br><small>${esc(x.plate_number)}</small>`,esc(x.title),`${x.due_mileage?Number(x.due_mileage).toLocaleString()+' กม. ':''}${x.due_date||''}`||'-',badge(x.state),`<button class="small-action" data-complete="${x.id}" data-mileage="${x.current_mileage}">บันทึกเสร็จ</button>`]);$('#content').innerHTML=`<div class="two-col">${form('ตั้งรอบบำรุงรักษา',`<form id="scheduleForm" class="grid-form"><label>รถ<select name="vehicle_id">${options()}</select></label><label>รายการ<input name="title" required placeholder="เช่น เปลี่ยนน้ำมันเครื่อง"></label><label>ทุกกี่กิโลเมตร<input type="number" min="1" name="interval_km"></label><label>ทุกกี่วัน<input type="number" min="1" name="interval_days"></label><label>เลขไมล์ที่ทำล่าสุด<input type="number" min="0" name="last_performed_mileage"></label><label>วันที่ทำล่าสุด<input type="date" name="last_performed_date"></label><button>บันทึกรอบ</button></form>`)}${form('รายการบำรุงรักษา',table(['รถ','รายการ','กำหนดถัดไป','สถานะ','ดำเนินการ'],tableRows))}</div>`;$('#scheduleForm').onsubmit=e=>submit(e,'/maintenance-schedules');document.querySelectorAll('[data-complete]').forEach(b=>b.onclick=()=>completeMaintenance(b.dataset.complete,b.dataset.mileage))}
 async function documents(){const rows=await api('/documents');$('#content').innerHTML=`<div class="two-col">${form('เพิ่มเอกสารรถ',`<form id="documentForm" class="grid-form"><label>รถ<select name="vehicle_id">${options()}</select></label><label>ประเภท<select name="document_type"><option value="compulsory_insurance">พ.ร.บ.</option><option value="tax">ภาษีรถ</option><option value="insurance">ประกันภัย</option><option value="registration">ทะเบียนรถ</option></select></label><label>วันหมดอายุ<input type="date" name="expiry_date" required></label><button>บันทึกเอกสาร</button></form>`)}${form('เอกสารรถ',table(['รถ','ประเภท','หมดอายุ'],rows.map(x=>[vname(x.vehicle_id),esc(x.document_type),esc(x.expiry_date)])))}</div>`;$('#documentForm').onsubmit=e=>submit(e,'/documents')}
-function line(){$('#content').innerHTML=form('เชื่อมต่อ LINE Bot','<p class="hint">ขั้นถัดไปจะปรับ OCR เป็น ยืนยัน / แก้ไข / ยกเลิก ก่อนบันทึกข้อมูล</p>')}
+async function line(){
+  $('#content').innerHTML=form('เชื่อมต่อ LINE Bot',`
+    <div class="grid-form" style="max-width:500px;margin:0 auto">
+      <label>เลือกยานพาหนะที่จะผูกกับ LINE *
+        <select id="lineVehicle">${options()}</select>
+      </label>
+      <button id="btnGenPair" style="margin-top:10px">สร้างรหัสยืนยัน <span>⚡</span></button>
+    </div>
+    <div id="pairResult" style="margin-top:24px;max-width:500px;margin-left:auto;margin-right:auto" hidden></div>
+  `);
+  $('#btnGenPair').onclick=async()=>{
+    const vid=$('#lineVehicle').value;
+    if(!vid)return alert('กรุณาเลือกยานพาหนะ');
+    try{
+      const r=await api(`/line/pair-code/${vid}`,{method:'POST'});
+      const resEl=$('#pairResult');
+      resEl.hidden=false;
+      resEl.innerHTML=`
+        <div class="card" style="text-align:center;padding:24px;background:rgba(11,19,34,0.6);border:1px solid var(--border-hover);border-radius:16px;box-shadow:var(--glow-shadow)">
+          <h3 style="color:var(--accent-cyan);margin-bottom:12px;font-size:18px">รหัสผูกบัญชีสำเร็จ!</h3>
+          <strong style="font-size:36px;letter-spacing:6px;color:#fff;display:block;margin:12px 0">${esc(r.code)}</strong>
+          <p style="margin:14px 0 8px 0;font-size:14px;color:var(--text-primary)">ส่งคำสั่งในแชต LINE บอท:</p>
+          <code style="display:inline-block;padding:8px 16px;background:#050a12;border:1px solid var(--border-color);border-radius:8px;font-size:16px;color:var(--accent-mint);font-family:monospace;font-weight:bold">${esc(r.instruction.replace('ส่งข้อความ LINE: ',''))}</code>
+          <p style="margin-top:14px;font-size:12px;color:var(--text-muted)">รหัสใช้งานได้ครั้งเดียวและมีอายุ 10 นาที</p>
+        </div>
+      `;
+    }catch(err){
+      alert(err.message);
+    }
+  };
+}
 async function submit(e,path,refreshVehicles=false){e.preventDefault();try{const data=Object.fromEntries(new FormData(e.target));['vehicle_id','mileage','amount','interval_km','interval_days','last_performed_mileage'].forEach(k=>{if(data[k])data[k]=Number(data[k]);else if(['interval_km','interval_days','last_performed_mileage'].includes(k))data[k]=null});await api(path,{method:'POST',body:JSON.stringify(data)});if(refreshVehicles)vehicles=await api('/vehicles');show(document.querySelector('.nav.active').dataset.page)}catch(err){alert(err.message)}}
 async function completeMaintenance(id,currentMileage){const mileage=prompt('เลขไมล์ขณะเข้ารับบริการ',currentMileage),performedDate=prompt('วันที่ดำเนินการ (YYYY-MM-DD)',new Date().toISOString().slice(0,10));if(mileage===null||performedDate===null)return;try{await api(`/maintenance-schedules/${id}/complete`,{method:'POST',body:JSON.stringify({mileage:Number(mileage),performed_date:performedDate})});show('maintenance')}catch(err){alert(err.message)}}
 init();
