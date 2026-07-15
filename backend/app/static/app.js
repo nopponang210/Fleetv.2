@@ -19,7 +19,83 @@ const badge=s=>`<span class="status ${s}">${s==='overdue'?'เกินกำห
 async function overview(){const selected=localStorage.fleetVehicle||'all',d=await api('/dashboard'+(selected==='all'?'':'?vehicle_id='+selected));$('#content').innerHTML=`<div class="toolbar"><label>กรองยานพาหนะ<select id="filter"><option value="all">ทุกคันในกองรถ</option>${options()}</select></label><div class="quick-actions"><button data-go="vehicles">+ เพิ่มรถ</button><button data-go="mileages">บันทึกเลขไมล์</button><button data-go="expenses">บันทึกค่าใช้จ่าย</button></div></div><div class="kpi-grid"><article class="kpi"><span>ยานพาหนะทั้งหมด</span><strong>${d.vehicles}</strong><small>ใช้งาน ${d.active_vehicles} · หยุดใช้งาน ${d.inactive_vehicles}</small></article><article class="kpi"><span>ค่าใช้จ่ายเดือนนี้</span><strong>฿${Number(d.month_expense).toLocaleString()}</strong><small>ข้อมูลจริงจากระบบ</small></article><article class="kpi"><span>เอกสารต้องติดตาม</span><strong>${d.due_documents}</strong><small>หมดอายุหรือภายใน 30 วัน</small></article><article class="kpi"><span>บำรุงรักษา</span><strong>${d.maintenance.length}</strong><small>เกินกำหนด ${d.maintenance_overdue} รายการ</small></article></div><div class="dash-grid">${form('ค่าใช้จ่ายย้อนหลัง 6 เดือน','<div class="chart-container"><canvas id="expenseChart"></canvas></div>')}${form('แนวโน้มเลขไมล์','<div class="chart-container"><canvas id="mileageChart"></canvas></div>')}${form('ต้องจัดการวันนี้',alerts(d))}${form('รายการล่าสุด',recent(d.recent))}${form('ค่าใช้จ่ายเดือนนี้ แยกตามรถ',table(['รถ','ยอดเงิน'],d.expense_by_vehicle.map(x=>[`${esc(x.name)}<br><small>${esc(x.plate_number)}</small>`,'฿'+Number(x.amount).toLocaleString()])))}</div>`;$('#filter').value=selected;$('#filter').onchange=e=>{localStorage.fleetVehicle=e.target.value;show('overview')};document.querySelectorAll('[data-go]').forEach(x=>x.onclick=()=>show(x.dataset.go));drawCharts(d)}
 function alerts(d){const rows=[...d.document_alerts,...d.maintenance];return rows.length?`<div class="alert-list">${rows.map(x=>`<div class="alert-row"><div><b>${esc(x.title)}</b><small>${esc(x.detail||x.vehicle_name+' · '+x.plate_number)}</small></div>${badge(x.state)}</div>`).join('')}</div>`:empty('ไม่มีรายการที่ต้องติดตาม')}
 function recent(rows){return rows.length?`<div class="recent-list">${rows.map(x=>`<div class="recent-row"><div><b>${esc(x.title)}</b><small>${esc(x.detail)}</small></div><time>${new Date(x.at).toLocaleString('th-TH')}</time></div>`).join('')}</div>`:empty('ยังไม่มีรายการบันทึก')}
-function drawCharts(d){const labels=d.monthly_expenses.map(x=>x.month),keys=[['น้ำมัน','fuel','#ff6b7d'],['บำรุงรักษา','maintenance','#10b981'],['อะไหล่','parts','#fbbf24'],['อื่น ๆ','other','#00e5ff']];chart('expenseChart',{type:'bar',data:{labels,datasets:keys.map(x=>({label:x[0],data:d.monthly_expenses.map(y=>y[x[1]]),backgroundColor:x[2]}))},options:{responsive:true,maintainAspectRatio:false,scales:{x:{stacked:true},y:{stacked:true,beginAtZero:true}}}});const mileage=d.mileage_trend.map(x=>x.mileage);if(!mileage.some(x=>x>0)){$('#mileageChart').parentElement.innerHTML=empty('ยังไม่มีข้อมูลเลขไมล์ในช่วง 6 เดือน');return}chart('mileageChart',{type:'line',data:{labels,datasets:[{label:'เลขไมล์สะสม (กม.)',data:mileage,borderColor:'#00e5ff',fill:false,tension:.3}]},options:{responsive:true,maintainAspectRatio:false}})}
+function drawCharts(d){
+  const labels=d.monthly_expenses.map(x=>x.month);
+  const keys=[
+    ['น้ำมัน','fuel','#ff273d'],
+    ['บำรุงรักษา','maintenance','#23f29a'],
+    ['อะไหล่','parts','#fbbf24'],
+    ['อื่น ๆ','other','#00dcff']
+  ];
+  chart('expenseChart',{
+    type:'bar',
+    data:{
+      labels,
+      datasets:keys.map(x=>({
+        label:x[0],
+        data:d.monthly_expenses.map(y=>y[x[1]]),
+        backgroundColor:x[2],
+        borderRadius:4
+      }))
+    },
+    options:{
+      responsive:true,
+      maintainAspectRatio:false,
+      plugins:{
+        legend:{labels:{font:{family:"'Outfit','Sarabun',sans-serif",size:11}}},
+        tooltip:{backgroundColor:'rgba(3,8,19,0.95)',borderColor:'rgba(0,220,255,0.3)',borderWidth:1,padding:10,cornerRadius:8}
+      },
+      scales:{
+        x:{stacked:true,grid:{color:'rgba(0,220,255,0.04)'},ticks:{font:{family:"'Outfit','Sarabun',sans-serif"}}},
+        y:{stacked:true,beginAtZero:true,grid:{color:'rgba(0,220,255,0.04)'},ticks:{font:{family:"'Outfit','Sarabun',sans-serif"}}}
+      }
+    }
+  });
+  const mileage=d.mileage_trend.map(x=>x.mileage);
+  if(!mileage.some(x=>x>0)){
+    $('#mileageChart').parentElement.innerHTML=empty('ยังไม่มีข้อมูลเลขไมล์ในช่วง 6 เดือน');
+    return;
+  }
+  const mCanvas=$('#mileageChart');
+  let mGrad=null;
+  if(mCanvas){
+    const ctx=mCanvas.getContext('2d');
+    mGrad=ctx.createLinearGradient(0,0,0,180);
+    mGrad.addColorStop(0,'rgba(0,220,255,0.22)');
+    mGrad.addColorStop(1,'rgba(0,220,255,0.0)');
+  }
+  chart('mileageChart',{
+    type:'line',
+    data:{
+      labels,
+      datasets:[{
+        label:'เลขไมล์สะสม (กม.)',
+        data:mileage,
+        borderColor:'#00dcff',
+        backgroundColor:mGrad||'transparent',
+        fill:true,
+        tension:.35,
+        borderWidth:3,
+        pointBackgroundColor:'#23f29a',
+        pointBorderColor:'#fff',
+        pointRadius:4,
+        pointHoverRadius:6
+      }]
+    },
+    options:{
+      responsive:true,
+      maintainAspectRatio:false,
+      plugins:{
+        legend:{labels:{font:{family:"'Outfit','Sarabun',sans-serif",size:11}}},
+        tooltip:{backgroundColor:'rgba(3,8,19,0.95)',borderColor:'rgba(0,220,255,0.3)',borderWidth:1,padding:10,cornerRadius:8}
+      },
+      scales:{
+        x:{grid:{color:'rgba(0,220,255,0.04)'},ticks:{font:{family:"'Outfit','Sarabun',sans-serif"}}},
+        y:{grid:{color:'rgba(0,220,255,0.04)'},ticks:{font:{family:"'Outfit','Sarabun',sans-serif"}}}
+      }
+    }
+  });
+}
 async function vehiclePage(){$('#content').innerHTML=`<div class="two-col">${form('เพิ่มรถใหม่',`<form id="vehicleForm" class="grid-form"><label>ชื่อรถ<input name="name" required></label><label>ทะเบียน<input name="plate_number" required></label><label>ประเภท<select name="vehicle_type"><option value="car">รถยนต์</option><option value="motorcycle">รถจักรยานยนต์</option></select></label><button>เพิ่มรถ</button></form>`)}${form('รถทั้งหมด',table(['ชื่อรถ','ทะเบียน','ประเภท','เลขไมล์ปัจจุบัน'],vehicles.map(v=>[esc(v.name),esc(v.plate_number),v.vehicle_type==='car'?'รถยนต์':'รถจักรยานยนต์',Number(v.current_mileage).toLocaleString()+' กม.'])))}</div>`;$('#vehicleForm').onsubmit=e=>submit(e,'/vehicles',true)}
 async function mileagePage(){const rows=await api('/mileages');$('#content').innerHTML=`<div class="two-col">${form('บันทึกเลขไมล์',`<form id="mileageForm" class="grid-form"><label>รถ<select name="vehicle_id">${options()}</select></label><label>เลขไมล์<input type="number" min="0" name="mileage" required></label><label>หมายเหตุ<input name="note"></label><button>บันทึกเลขไมล์</button></form>`)}${form('ประวัติเลขไมล์',table(['รถ','เลขไมล์','สถานะ','เวลา'],rows.map(x=>[vname(x.vehicle_id),Number(x.mileage).toLocaleString()+' กม.',esc(x.ocr_status),new Date(x.recorded_at).toLocaleString('th-TH')])))}</div>`;$('#mileageForm').onsubmit=e=>submit(e,'/mileages')}
 async function expensePage(){const rows=await api('/expenses');$('#content').innerHTML=`<div class="two-col">${form('บันทึกค่าใช้จ่าย',`<form id="expenseForm" class="grid-form"><label>รถ<select name="vehicle_id">${options()}</select></label><label>หมวด<select name="category">${categories.map(x=>`<option>${x}</option>`).join('')}</select></label><label>จำนวนเงิน<input type="number" min="0" step=".01" name="amount" required></label><label>วันที่<input type="date" name="expense_date" value="${new Date().toISOString().slice(0,10)}"></label><label>อู่/ร้านค้า<input name="garage_name"></label><label>หมายเหตุ<input name="note"></label><button>บันทึกค่าใช้จ่าย</button></form>`)}${form('ประวัติค่าใช้จ่าย',table(['รถ','หมวด','จำนวนเงิน','วันที่'],rows.map(x=>[vname(x.vehicle_id),esc(x.category),'฿'+Number(x.amount).toLocaleString(),esc(x.expense_date)])))}</div>`;$('#expenseForm').onsubmit=e=>submit(e,'/expenses')}
