@@ -1,0 +1,16 @@
+.env
+__pycache__/
+*.py[cod]
+.pytest_cache/
+fleetai.db
+uploads/
+.venv/
+venv/
+fleet/
+v.gpt plus/
+/*.zip
+/*.jpg
+/*.png
+/*.webp
+
+
