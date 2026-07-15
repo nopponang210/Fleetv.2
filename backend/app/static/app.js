@@ -2,7 +2,7 @@ document.head.insertAdjacentHTML('beforeend','<link rel="stylesheet" href="/stat
 document.querySelector('[data-page="documents"]')?.insertAdjacentHTML('beforebegin','<button class="nav" data-page="maintenance">⌘ บำรุงรักษา</button>');
 const $=s=>document.querySelector(s),token=localStorage.token;
 if(window.Chart){Chart.defaults.color='#86b9d8';Chart.defaults.borderColor='rgba(0,140,255,.13)';Chart.defaults.font.family="'Plus Jakarta Sans','Sarabun',sans-serif"}
-let vehicles=[],charts=[];
+let vehicles=[],charts=[],currentExpenses=[];
 const categories=['น้ำมันเชื้อเพลิง','ค่าซ่อมบำรุง','ยางรถ','ประกันภัย','ภาษีรถ','พ.ร.บ.','ล้างรถ','ทางด่วน','ที่จอดรถ','ค่าปรับ','อะไหล่','แบตเตอรี่','อุปกรณ์เสริม','อื่น ๆ'];
 const esc=s=>String(s??'').replace(/[&<>"']/g,x=>({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#039;'}[x]));
 function logout(){localStorage.removeItem('token');location.href='/login'}
@@ -97,8 +97,40 @@ function drawCharts(d){
   });
 }
 async function vehiclePage(){$('#content').innerHTML=`<div class="two-col">${form('เพิ่มรถใหม่',`<form id="vehicleForm" class="grid-form"><label>ชื่อรถ<input name="name" required></label><label>ทะเบียน<input name="plate_number" required></label><label>ประเภท<select name="vehicle_type"><option value="car">รถยนต์</option><option value="motorcycle">รถจักรยานยนต์</option></select></label><button>เพิ่มรถ</button></form>`)}${form('รถทั้งหมด',table(['ชื่อรถ','ทะเบียน','ประเภท','เลขไมล์ปัจจุบัน'],vehicles.map(v=>[esc(v.name),esc(v.plate_number),v.vehicle_type==='car'?'รถยนต์':'รถจักรยานยนต์',Number(v.current_mileage).toLocaleString()+' กม.'])))}</div>`;$('#vehicleForm').onsubmit=e=>submit(e,'/vehicles',true)}
-async function mileagePage(){const rows=await api('/mileages');$('#content').innerHTML=`<div class="two-col">${form('บันทึกเลขไมล์',`<form id="mileageForm" class="grid-form"><label>รถ<select name="vehicle_id">${options()}</select></label><label>เลขไมล์<input type="number" min="0" name="mileage" required></label><label>หมายเหตุ<input name="note"></label><button>บันทึกเลขไมล์</button></form>`)}${form('ประวัติเลขไมล์',table(['รถ','เลขไมล์','สถานะ','เวลา'],rows.map(x=>[vname(x.vehicle_id),Number(x.mileage).toLocaleString()+' กม.',esc(x.ocr_status),new Date(x.recorded_at).toLocaleString('th-TH')])))}</div>`;$('#mileageForm').onsubmit=e=>submit(e,'/mileages')}
-async function expensePage(){const rows=await api('/expenses');$('#content').innerHTML=`<div class="two-col">${form('บันทึกค่าใช้จ่าย',`<form id="expenseForm" class="grid-form"><label>รถ<select name="vehicle_id">${options()}</select></label><label>หมวด<select name="category">${categories.map(x=>`<option>${x}</option>`).join('')}</select></label><label>จำนวนเงิน<input type="number" min="0" step=".01" name="amount" required></label><label>วันที่<input type="date" name="expense_date" value="${new Date().toISOString().slice(0,10)}"></label><label>อู่/ร้านค้า<input name="garage_name"></label><label>หมายเหตุ<input name="note"></label><button>บันทึกค่าใช้จ่าย</button></form>`)}${form('ประวัติค่าใช้จ่าย',table(['รถ','หมวด','จำนวนเงิน','วันที่'],rows.map(x=>[vname(x.vehicle_id),esc(x.category),'฿'+Number(x.amount).toLocaleString(),esc(x.expense_date)])))}</div>`;$('#expenseForm').onsubmit=e=>submit(e,'/expenses')}
+async function mileagePage(){
+  const rows=await api('/mileages');
+  $('#content').innerHTML=`<div class="two-col">
+    ${form('บันทึกเลขไมล์',`<form id="mileageForm" class="grid-form"><label>รถ<select name="vehicle_id">${options()}</select></label><label>เลขไมล์<input type="number" min="0" name="mileage" required></label><label>หมายเหตุ<input name="note"></label><button>บันทึกเลขไมล์</button></form>`)}
+    ${form('ประวัติเลขไมล์',table(['รถ','เลขไมล์','หมายเหตุ','สถานะ','เวลา','ดำเนินการ'],rows.map(x=>[
+      vname(x.vehicle_id),
+      Number(x.mileage).toLocaleString()+' กม.',
+      esc(x.note || ''),
+      esc(x.ocr_status),
+      new Date(x.recorded_at).toLocaleString('th-TH'),
+      `<button class="small-action danger" onclick="remove('mileages',${x.id},'mileages')" style="background:var(--neon-red);color:#fff;border-color:var(--neon-red)">ลบ</button>`
+    ])))}
+  </div>`;
+  $('#mileageForm').onsubmit=e=>submit(e,'/mileages');
+}
+async function expensePage(){
+  const rows=await api('/expenses');
+  currentExpenses=rows;
+  $('#content').innerHTML=`<div class="two-col">
+    ${form('บันทึกค่าใช้จ่าย',`<form id="expenseForm" class="grid-form"><label>รถ<select name="vehicle_id">${options()}</select></label><label>หมวด<select name="category">${categories.map(x=>`<option>${x}</option>`).join('')}</select></label><label>จำนวนเงิน<input type="number" min="0" step=".01" name="amount" required></label><label>วันที่<input type="date" name="expense_date" value="${new Date().toISOString().slice(0,10)}"></label><label>อู่/ร้านค้า<input name="garage_name"></label><label>หมายเหตุ<input name="note"></label><button>บันทึกค่าใช้จ่าย</button></form>`)}
+    ${form('ประวัติค่าใช้จ่าย',table(['รถ','หมวด','รายละเอียด','จำนวนเงิน','วันที่','ดำเนินการ'],rows.map(x=>[
+      vname(x.vehicle_id),
+      esc(x.category),
+      esc(x.note || ''),
+      '฿'+Number(x.amount).toLocaleString(),
+      esc(x.expense_date),
+      `<div style="display:flex;gap:4px">
+        <button class="small-action" onclick="editExpense(${x.id})">แก้ไข</button>
+        <button class="small-action danger" onclick="remove('expenses',${x.id},'expenses')" style="background:var(--neon-red);color:#fff;border-color:var(--neon-red)">ลบ</button>
+      </div>`
+    ])))}
+  </div>`;
+  $('#expenseForm').onsubmit=e=>submit(e,'/expenses');
+}
 async function maintenance(){const rows=await api('/maintenance-schedules'),tableRows=rows.map(x=>[`${esc(x.vehicle_name)}<br><small>${esc(x.plate_number)}</small>`,esc(x.title),`${x.due_mileage?Number(x.due_mileage).toLocaleString()+' กม. ':''}${x.due_date||''}`||'-',badge(x.state),`<button class="small-action" data-complete="${x.id}" data-mileage="${x.current_mileage}">บันทึกเสร็จ</button>`]);$('#content').innerHTML=`<div class="two-col">${form('ตั้งรอบบำรุงรักษา',`<form id="scheduleForm" class="grid-form"><label>รถ<select name="vehicle_id">${options()}</select></label><label>รายการ<input name="title" required placeholder="เช่น เปลี่ยนน้ำมันเครื่อง"></label><label>ทุกกี่กิโลเมตร<input type="number" min="1" name="interval_km"></label><label>ทุกกี่วัน<input type="number" min="1" name="interval_days"></label><label>เลขไมล์ที่ทำล่าสุด<input type="number" min="0" name="last_performed_mileage"></label><label>วันที่ทำล่าสุด<input type="date" name="last_performed_date"></label><button>บันทึกรอบ</button></form>`)}${form('รายการบำรุงรักษา',table(['รถ','รายการ','กำหนดถัดไป','สถานะ','ดำเนินการ'],tableRows))}</div>`;$('#scheduleForm').onsubmit=e=>submit(e,'/maintenance-schedules');document.querySelectorAll('[data-complete]').forEach(b=>b.onclick=()=>completeMaintenance(b.dataset.complete,b.dataset.mileage))}
 async function documents(){const rows=await api('/documents');$('#content').innerHTML=`<div class="two-col">${form('เพิ่มเอกสารรถ',`<form id="documentForm" class="grid-form"><label>รถ<select name="vehicle_id">${options()}</select></label><label>ประเภท<select name="document_type"><option value="compulsory_insurance">พ.ร.บ.</option><option value="tax">ภาษีรถ</option><option value="insurance">ประกันภัย</option><option value="registration">ทะเบียนรถ</option></select></label><label>วันหมดอายุ<input type="date" name="expiry_date" required></label><button>บันทึกเอกสาร</button></form>`)}${form('เอกสารรถ',table(['รถ','ประเภท','หมดอายุ'],rows.map(x=>[vname(x.vehicle_id),esc(x.document_type),esc(x.expiry_date)])))}</div>`;$('#documentForm').onsubmit=e=>submit(e,'/documents')}
 async function line(){
@@ -132,6 +164,60 @@ async function line(){
     }
   };
 }
-async function submit(e,path,refreshVehicles=false){e.preventDefault();try{const data=Object.fromEntries(new FormData(e.target));['vehicle_id','mileage','amount','interval_km','interval_days','last_performed_mileage'].forEach(k=>{if(data[k])data[k]=Number(data[k]);else if(['interval_km','interval_days','last_performed_mileage'].includes(k))data[k]=null});await api(path,{method:'POST',body:JSON.stringify(data)});if(refreshVehicles)vehicles=await api('/vehicles');show(document.querySelector('.nav.active').dataset.page)}catch(err){alert(err.message)}}
+async function submit(e,path,refreshVehicles=false){
+  e.preventDefault();
+  try{
+    const data=Object.fromEntries(new FormData(e.target));
+    ['vehicle_id','mileage','amount','interval_km','interval_days','last_performed_mileage'].forEach(k=>{
+      if(data[k])data[k]=Number(data[k]);
+      else if(['interval_km','interval_days','last_performed_mileage'].includes(k))data[k]=null;
+    });
+    const id=e.target.dataset.id;
+    if(id){
+      await api(path+'/'+id,{method:'PATCH',body:JSON.stringify(data)});
+      delete e.target.dataset.id;
+    }else{
+      await api(path,{method:'POST',body:JSON.stringify(data)});
+    }
+    if(refreshVehicles)vehicles=await api('/vehicles');
+    show(document.querySelector('.nav.active').dataset.page);
+  }catch(err){
+    alert(err.message);
+  }
+}
+window.remove=async(type,id,page)=>{
+  if(!confirm('ยืนยันลบรายการนี้หรือไม่? การดำเนินการนี้ย้อนกลับไม่ได้'))return;
+  try{
+    await api(`/${type}/${id}`,{method:'DELETE'});
+    alert('ลบข้อมูลเรียบร้อย');
+    show(page);
+  }catch(err){
+    alert(err.message);
+  }
+};
+window.editExpense=(id)=>{
+  const x=currentExpenses.find(item=>item.id===id);
+  if(!x)return;
+  const formEl=$('#expenseForm');
+  if(formEl){
+    formEl.dataset.id=x.id;
+    formEl.querySelector('[name="vehicle_id"]').value=x.vehicle_id;
+    formEl.querySelector('[name="category"]').value=x.category;
+    formEl.querySelector('[name="amount"]').value=x.amount;
+    formEl.querySelector('[name="expense_date"]').value=x.expense_date;
+    formEl.querySelector('[name="garage_name"]').value=x.garage_name||'';
+    formEl.querySelector('[name="note"]').value=x.note||'';
+    formEl.querySelector('button').textContent='บันทึกการแก้ไข';
+    if(!formEl.querySelector('#btnCancelEdit')){
+      formEl.insertAdjacentHTML('beforeend','<button type="button" id="btnCancelEdit" class="secondary" style="background:#55758d;color:#fff;margin-top:10px;width:100%">ยกเลิกแก้ไข</button>');
+      formEl.querySelector('#btnCancelEdit').onclick=()=>{
+        formEl.reset();
+        delete formEl.dataset.id;
+        formEl.querySelector('button').textContent='บันทึกค่าใช้จ่าย';
+        formEl.querySelector('#btnCancelEdit').remove();
+      };
+    }
+  }
+};
 async function completeMaintenance(id,currentMileage){const mileage=prompt('เลขไมล์ขณะเข้ารับบริการ',currentMileage),performedDate=prompt('วันที่ดำเนินการ (YYYY-MM-DD)',new Date().toISOString().slice(0,10));if(mileage===null||performedDate===null)return;try{await api(`/maintenance-schedules/${id}/complete`,{method:'POST',body:JSON.stringify({mileage:Number(mileage),performed_date:performedDate})});show('maintenance')}catch(err){alert(err.message)}}
 init();

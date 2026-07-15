@@ -133,3 +133,61 @@ def pair_code(vehicle_id:int,user=Depends(require_roles("owner","admin","editor"
     if not vehicle or vehicle.company_id != user.company_id: raise HTTPException(404,"ไม่พบรถ")
     code=token_urlsafe(5).upper(); item=LinePairCode(vehicle_id=vehicle_id,code=code,expires_at=datetime.utcnow()+timedelta(minutes=10)); db.add(item); db.commit()
     return {"code":code,"expires_at":item.expires_at,"instruction":f"ส่งข้อความ LINE: ผูกรถ {code}"}
+
+class ExpenseUpdate(BaseModel):
+    vehicle_id: int | None = None
+    category: str | None = None
+    amount: Decimal | None = None
+    expense_date: date | None = None
+    garage_name: str | None = None
+    note: str | None = None
+
+class MileageUpdate(BaseModel):
+    vehicle_id: int | None = None
+    mileage: int | None = None
+    note: str | None = None
+
+@router.delete("/expenses/{id}")
+def delete_expense(id: int, user=Depends(require_roles("owner","admin","editor")), db: Session = Depends(get_db)):
+    item = db.get(Expense, id)
+    if not item: raise HTTPException(404, "ไม่พบค่าใช้จ่าย")
+    vehicle = db.get(Vehicle, item.vehicle_id)
+    if not vehicle or vehicle.company_id != user.company_id: raise HTTPException(404, "ไม่พบค่าใช้จ่าย")
+    db.delete(item)
+    db.commit()
+    return {"message": "ลบค่าใช้จ่ายเรียบร้อย"}
+
+@router.patch("/expenses/{id}")
+def update_expense(id: int, payload: ExpenseUpdate, user=Depends(require_roles("owner","admin","editor")), db: Session = Depends(get_db)):
+    item = db.get(Expense, id)
+    if not item: raise HTTPException(404, "ไม่พบค่าใช้จ่าย")
+    vehicle = db.get(Vehicle, item.vehicle_id)
+    if not vehicle or vehicle.company_id != user.company_id: raise HTTPException(404, "ไม่พบค่าใช้จ่าย")
+    for k, v in payload.model_dump(exclude_unset=True).items():
+        setattr(item, k, v)
+    db.commit()
+    db.refresh(item)
+    return item
+
+@router.delete("/mileages/{id}")
+def delete_mileage(id: int, user=Depends(require_roles("owner","admin","editor")), db: Session = Depends(get_db)):
+    item = db.get(MileageHistory, id)
+    if not item: raise HTTPException(404, "ไม่พบประวัติเลขไมล์")
+    vehicle = db.get(Vehicle, item.vehicle_id)
+    if not vehicle or vehicle.company_id != user.company_id: raise HTTPException(404, "ไม่พบประวัติเลขไมล์")
+    db.delete(item)
+    db.commit()
+    return {"message": "ลบประวัติเลขไมล์เรียบร้อย"}
+
+@router.patch("/mileages/{id}")
+def update_mileage(id: int, payload: MileageUpdate, user=Depends(require_roles("owner","admin","editor")), db: Session = Depends(get_db)):
+    item = db.get(MileageHistory, id)
+    if not item: raise HTTPException(404, "ไม่พบประวัติเลขไมล์")
+    vehicle = db.get(Vehicle, item.vehicle_id)
+    if not vehicle or vehicle.company_id != user.company_id: raise HTTPException(404, "ไม่พบประวัติเลขไมล์")
+    for k, v in payload.model_dump(exclude_unset=True).items():
+        setattr(item, k, v)
+    db.commit()
+    db.refresh(item)
+    return item
+

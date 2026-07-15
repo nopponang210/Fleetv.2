@@ -1,14 +1,28 @@
 import os
 import base64
 import json
+import time
 import httpx
-from datetime import datetime
+from datetime import datetime, timedelta
 from fastapi import APIRouter, Header, HTTPException, Request
 from sqlalchemy.orm import Session
 from app.db.database import SessionLocal
 from app.models import LinePairCode, UserVehicle, User, MileageHistory, Vehicle, Expense
 
 router = APIRouter()
+
+PROCESSED_LINE_MESSAGES = {}
+
+def is_duplicate(message_id: str) -> bool:
+    if not message_id: return False
+    now = time.time()
+    # Clean up entries older than 10 minutes
+    expired = [k for k, v in PROCESSED_LINE_MESSAGES.items() if now - v > 600]
+    for k in expired: del PROCESSED_LINE_MESSAGES[k]
+    if message_id in PROCESSED_LINE_MESSAGES: return True
+    PROCESSED_LINE_MESSAGES[message_id] = now
+    return False
+
 
 async def reply_line(reply_token: str, text: str, token: str):
     url = "https://api.line.me/v2/bot/message/reply"
@@ -143,6 +157,11 @@ async def line_webhook(request: Request, x_line_signature: str | None = Header(d
             continue
             
         message = event.get("message", {})
+        message_id = message.get("id")
+        if message_id and is_duplicate(str(message_id)):
+            print(f"Skipping duplicate event message: {message_id}")
+            continue
+            
         msg_type = message.get("type")
         line_id = event.get("source", {}).get("userId")
         
@@ -221,6 +240,16 @@ async def line_webhook(request: Request, x_line_signature: str | None = Header(d
                                 await reply_line(reply_token, f"❌ เลขไมล์ที่ระบุ ({value:,} กม.) น้อยกว่าเลขไมล์ปัจจุบัน ({vehicle.current_mileage:,} กม.) กรุณาลองใหม่อีกครั้ง", token)
                                 continue
                                 
+                            # Check database duplicate in the last 1 minute
+                            duplicate = db.query(MileageHistory).filter(
+                                MileageHistory.vehicle_id == vehicle_id,
+                                MileageHistory.mileage == int(value),
+                                MileageHistory.recorded_at >= datetime.utcnow() - timedelta(minutes=1)
+                            ).first()
+                            if duplicate:
+                                await reply_line(reply_token, f"🤖 บันทึกเลขไมล์สำเร็จ!\n🚗 รถ: {vehicle.name} ({vehicle.plate_number})\n📈 เลขไมล์: {value:,} กม.\n📝 บันทึก: {note or text} (ข้ามรายการซ้ำ)", token)
+                                continue
+
                             record = MileageHistory(
                                 vehicle_id=vehicle_id,
                                 recorded_by=user.id,
@@ -240,6 +269,17 @@ async def line_webhook(request: Request, x_line_signature: str | None = Header(d
                             category = analysis.get("category", "อื่น ๆ")
                             garage_name = analysis.get("garage_name", "")
                             
+                            # Check database duplicate in the last 1 minute
+                            duplicate = db.query(Expense).filter(
+                                Expense.vehicle_id == vehicle_id,
+                                Expense.category == category,
+                                Expense.amount == float(value),
+                                Expense.created_at >= datetime.utcnow() - timedelta(minutes=1)
+                            ).first()
+                            if duplicate:
+                                await reply_line(reply_token, f"🤖 บันทึกค่าใช้จ่ายสำเร็จ!\n🚗 รถ: {vehicle.name}\n🏷️ หมวดหมู่: {category}\n💰 ยอดเงิน: ฿{value:,}\n🏪 ร้านค้า: {garage_name or '-'}\n📝 บันทึก: {note or text} (ข้ามรายการซ้ำ)", token)
+                                continue
+
                             record = Expense(
                                 vehicle_id=vehicle_id,
                                 created_by=user.id,
@@ -318,6 +358,16 @@ async def line_webhook(request: Request, x_line_signature: str | None = Header(d
                             await reply_line(reply_token, f"❌ เลขไมล์ที่อ่านได้ ({value:,} กม.) น้อยกว่าเลขไมล์ปัจจุบัน ({vehicle.current_mileage:,} กม.) กรุณาลองใหม่อีกครั้ง", token)
                             continue
                             
+                        # Check database duplicate in the last 1 minute
+                        duplicate = db.query(MileageHistory).filter(
+                            MileageHistory.vehicle_id == vehicle_id,
+                            MileageHistory.mileage == int(value),
+                            MileageHistory.recorded_at >= datetime.utcnow() - timedelta(minutes=1)
+                        ).first()
+                        if duplicate:
+                            await reply_line(reply_token, f"🤖 บันทึกเลขไมล์สำเร็จ!\n🚗 รถ: {vehicle.name} ({vehicle.plate_number})\n📈 เลขไมล์: {value:,} กม.\n📝 บันทึก: {note or 'อ่านอัตโนมัติ'} (ข้ามรายการซ้ำ)", token)
+                            continue
+
                         record = MileageHistory(
                             vehicle_id=vehicle_id,
                             recorded_by=user.id,
@@ -337,6 +387,17 @@ async def line_webhook(request: Request, x_line_signature: str | None = Header(d
                         category = analysis.get("category", "อื่น ๆ")
                         garage_name = analysis.get("garage_name", "")
                         
+                        # Check database duplicate in the last 1 minute
+                        duplicate = db.query(Expense).filter(
+                            Expense.vehicle_id == vehicle_id,
+                            Expense.category == category,
+                            Expense.amount == float(value),
+                            Expense.created_at >= datetime.utcnow() - timedelta(minutes=1)
+                        ).first()
+                        if duplicate:
+                            await reply_line(reply_token, f"🤖 บันทึกค่าใช้จ่ายสำเร็จ!\n🚗 รถ: {vehicle.name}\n🏷️ หมวดหมู่: {category}\n💰 ยอดเงิน: ฿{value:,}\n🏪 ร้านค้า: {garage_name or '-'}\n📝 บันทึก: {note or 'บันทึกอัตโนมัติ'} (ข้ามรายการซ้ำ)", token)
+                            continue
+
                         record = Expense(
                             vehicle_id=vehicle_id,
                             created_by=user.id,
