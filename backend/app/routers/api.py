@@ -177,6 +177,12 @@ def delete_mileage(id: int, user=Depends(require_roles("owner","admin","editor")
     if not vehicle or vehicle.company_id != user.company_id: raise HTTPException(404, "ไม่พบประวัติเลขไมล์")
     db.delete(item)
     db.commit()
+    
+    # Recalculate current_mileage for the vehicle
+    max_mileage = db.query(func.max(MileageHistory.mileage)).filter(MileageHistory.vehicle_id == vehicle.id).scalar()
+    vehicle.current_mileage = max_mileage or 0
+    db.commit()
+    
     return {"message": "ลบประวัติเลขไมล์เรียบร้อย"}
 
 @router.patch("/mileages/{id}")
@@ -188,6 +194,16 @@ def update_mileage(id: int, payload: MileageUpdate, user=Depends(require_roles("
     for k, v in payload.model_dump(exclude_unset=True).items():
         setattr(item, k, v)
     db.commit()
+    
+    # Recalculate current_mileage for the vehicle
+    max_mileage = db.query(func.max(MileageHistory.mileage)).filter(MileageHistory.vehicle_id == vehicle.id).scalar()
+    vehicle.current_mileage = max_mileage or 0
+    db.commit()
+    
     db.refresh(item)
     return item
+
+@router.put("/mileages/{id}")
+def update_mileage_put(id: int, payload: MileageUpdate, user=Depends(require_roles("owner","admin","editor")), db: Session = Depends(get_db)):
+    return update_mileage(id, payload, user, db)
 

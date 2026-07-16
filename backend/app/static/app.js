@@ -99,6 +99,7 @@ function drawCharts(d){
 async function vehiclePage(){$('#content').innerHTML=`<div class="two-col">${form('เพิ่มรถใหม่',`<form id="vehicleForm" class="grid-form"><label>ชื่อรถ<input name="name" required></label><label>ทะเบียน<input name="plate_number" required></label><label>ประเภท<select name="vehicle_type"><option value="car">รถยนต์</option><option value="motorcycle">รถจักรยานยนต์</option></select></label><button>เพิ่มรถ</button></form>`)}${form('รถทั้งหมด',table(['ชื่อรถ','ทะเบียน','ประเภท','เลขไมล์ปัจจุบัน'],vehicles.map(v=>[esc(v.name),esc(v.plate_number),v.vehicle_type==='car'?'รถยนต์':'รถจักรยานยนต์',Number(v.current_mileage).toLocaleString()+' กม.'])))}</div>`;$('#vehicleForm').onsubmit=e=>submit(e,'/vehicles',true)}
 async function mileagePage(){
   const rows=await api('/mileages');
+  currentMileages=rows;
   $('#content').innerHTML=`<div class="two-col">
     ${form('บันทึกเลขไมล์',`<form id="mileageForm" class="grid-form"><label>รถ<select name="vehicle_id">${options()}</select></label><label>เลขไมล์<input type="number" min="0" name="mileage" required></label><label>หมายเหตุ<input name="note"></label><button>บันทึกเลขไมล์</button></form>`)}
     ${form('ประวัติเลขไมล์',table(['รถ','เลขไมล์','หมายเหตุ','สถานะ','เวลา','ดำเนินการ'],rows.map(x=>[
@@ -107,7 +108,10 @@ async function mileagePage(){
       esc(x.note || ''),
       esc(x.ocr_status),
       new Date(x.recorded_at).toLocaleString('th-TH'),
-      `<button class="small-action danger" onclick="remove('mileages',${x.id},'mileages')" style="background:var(--neon-red);color:#fff;border-color:var(--neon-red)">ลบ</button>`
+      `<div style="display:flex;gap:4px">
+        <button class="small-action" onclick="editMileage(${x.id})">แก้ไข</button>
+        <button class="small-action danger" onclick="remove('mileages',${x.id},'mileages')" style="background:var(--neon-red);color:#fff;border-color:var(--neon-red)">ลบ</button>
+      </div>`
     ])))}
   </div>`;
   $('#mileageForm').onsubmit=e=>submit(e,'/mileages');
@@ -174,7 +178,8 @@ async function submit(e,path,refreshVehicles=false){
     });
     const id=e.target.dataset.id;
     if(id){
-      await api(path+'/'+id,{method:'PATCH',body:JSON.stringify(data)});
+      const method=path.startsWith('/mileages') ? 'PUT' : 'PATCH';
+      await api(path+'/'+id,{method:method,body:JSON.stringify(data)});
       delete e.target.dataset.id;
     }else{
       await api(path,{method:'POST',body:JSON.stringify(data)});
@@ -214,6 +219,27 @@ window.editExpense=(id)=>{
         formEl.reset();
         delete formEl.dataset.id;
         formEl.querySelector('button').textContent='บันทึกค่าใช้จ่าย';
+        formEl.querySelector('#btnCancelEdit').remove();
+      };
+    }
+  }
+};
+window.editMileage=(id)=>{
+  const x=currentMileages.find(item=>item.id===id);
+  if(!x)return;
+  const formEl=$('#mileageForm');
+  if(formEl){
+    formEl.dataset.id=x.id;
+    formEl.querySelector('[name="vehicle_id"]').value=x.vehicle_id;
+    formEl.querySelector('[name="mileage"]').value=x.mileage;
+    formEl.querySelector('[name="note"]').value=x.note||'';
+    formEl.querySelector('button').textContent='บันทึกการแก้ไข';
+    if(!formEl.querySelector('#btnCancelEdit')){
+      formEl.insertAdjacentHTML('beforeend','<button type="button" id="btnCancelEdit" class="secondary" style="background:#55758d;color:#fff;margin-top:10px;width:100%">ยกเลิกแก้ไข</button>');
+      formEl.querySelector('#btnCancelEdit').onclick=()=>{
+        formEl.reset();
+        delete formEl.dataset.id;
+        formEl.querySelector('button').textContent='บันทึกเลขไมล์';
         formEl.querySelector('#btnCancelEdit').remove();
       };
     }
