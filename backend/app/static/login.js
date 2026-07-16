@@ -1,3 +1,0 @@
-document.head.insertAdjacentHTML('beforeend','<link rel="stylesheet" href="/static/fleetai-neon.css?v=1">');
-if(localStorage.token) location.href='/dashboard';
-document.querySelector('#loginForm').onsubmit=async e=>{e.preventDefault();const error=document.querySelector('#error');error.textContent='';try{const r=await fetch('/api/auth/login',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({email:email.value,password:password.value})}),raw=await r.text();let d={};try{d=raw?JSON.parse(raw):{}}catch{d={detail:raw||'ระบบตอบกลับข้อมูลผิดรูปแบบ'}}if(!r.ok)throw Error(d.detail||'เข้าสู่ระบบไม่สำเร็จ');localStorage.token=d.token;location.href='/dashboard'}catch(err){error.textContent=err.message||'ไม่สามารถเข้าสู่ระบบได้'}};
